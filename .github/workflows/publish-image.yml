@@ -7,6 +7,9 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: al-kutub/paperclip-ai
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+  RAILWAY_ENV_ID: ${{ secrets.RAILWAY_ENV_ID }}
 
 jobs:
   build-push:
@@ -14,8 +17,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      sha: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,20 +44,17 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
 
       - name: Update Railway service
-        if: env.RAILWAY_TOKEN != '' && env.RAILWAY_SERVICE_ID != ''
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
-          RAILWAY_ENV_ID: ${{ secrets.RAILWAY_ENV_ID }}
+        if: env.RAILWAY_TOKEN != ''
         run: |
-          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          SHA="${{ github.sha }}"
           IMAGE="ghcr.io/${{ env.IMAGE_NAME }}:sha-${SHA}"
-          curl -s -X POST https://backboard.railway.com/graphql/v2 \
+          curl -sf -X POST https://backboard.railway.com/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceUpdate(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENV_ID\\\", input: { source: { image: \\\"$IMAGE\\\" } }) }\"}"
-          curl -s -X POST https://backboard.railway.com/graphql/v2 \
+            -d "{\"query\":\"mutation { serviceInstanceUpdate(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENV_ID\\\", input: { source: { image: \\\"$IMAGE\\\" } }) }\"}" \
+            && echo "Source updated" || echo "Warning: source update failed"
+          curl -sf -X POST https://backboard.railway.com/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENV_ID\\\") }\"}"
-          echo "Railway redeployed with image $IMAGE"
+            -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENV_ID\\\") }\"}" \
+            && echo "Deploy triggered" || echo "Warning: deploy trigger failed"
