@@ -7,4 +7,4 @@ RUN chmod +x /usr/local/bin/pc-entrypoint.sh
 
 # node is already in PATH from base image
 ENTRYPOINT ["/usr/local/bin/pc-entrypoint.sh"]
-CMD ["node", "server/dist/index.js"]
+# No CMD override — inherits base image CMD (original Paperclip startup)
